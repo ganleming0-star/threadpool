@@ -55,7 +55,7 @@ private:
     void threadFunc();
 
 private:
-    std::vector<Thread*> threads;//线程列表
+    std::vector<std::unique_ptr<Thread>> threads;//线程列表
     int initThreadSize;//初始线程数
     std::queue<std::shared_ptr<Task>> taskQue;//任务队列
     std::atomic_int taskSize;//任务数量

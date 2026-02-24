@@ -15,7 +15,8 @@ ThreadPool::~ThreadPool() {
 void ThreadPool::start(int initThreadSize) {
     this->initThreadSize = initThreadSize;
     for (int i = 0; i < initThreadSize; i++) {
-        threads.emplace_back(new Thread(std::bind(&ThreadPool::threadFunc,this)));
+        auto ptr = std::make_unique<Thread>(std::bind(&ThreadPool::threadFunc,this));
+        threads.emplace_back(std::move(ptr));
     }
 
     for (auto& m_thread : threads) {
@@ -40,6 +41,17 @@ void ThreadPool::setTaskMaxThreshHold(int max) {
 
 
 void ThreadPool::submitTask(std::shared_ptr<Task> sp) {
+    //获取互斥锁
+    std::unique_lock<std::mutex> lock(taskQueMtx);
+    //等待任务队列非满
+    taskQueNotFull.wait(lock,[&](){
+        return taskQue.size() < taskMaxThreshHold;
+    });
+    //添加任务
+    taskQue.emplace(sp);
+    taskSize++;
+    //唤醒
+    taskQueNotEmpty.notify_all();
 }
 
 
