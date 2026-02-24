@@ -26,7 +26,32 @@ void ThreadPool::start(int initThreadSize) {
 }
 
 void ThreadPool::threadFunc() {
-    std::cout<<std::this_thread::get_id()<<" start"<<std::endl;
+
+    for (;;) {
+        std::shared_ptr<Task> task;
+        {
+            //获取锁
+            std::unique_lock<std::mutex> lock(taskQueMtx);
+            //等待notEmpty条件
+            taskQueNotEmpty.wait(lock,[&]()->bool{ return taskSize > 0;});
+            //取任务
+            task = taskQue.front();
+            taskQue.pop();
+            taskSize--;
+            //唤醒
+            if (!taskQue.empty()) {
+                taskQueNotEmpty.notify_all();
+            }
+
+            taskQueNotFull.notify_all();
+        }
+
+        //执行任务
+        if ( task) {
+            task->run();
+        }
+
+    }
 
 }
 
@@ -44,9 +69,14 @@ void ThreadPool::submitTask(std::shared_ptr<Task> sp) {
     //获取互斥锁
     std::unique_lock<std::mutex> lock(taskQueMtx);
     //等待任务队列非满
-    taskQueNotFull.wait(lock,[&](){
+    if (!taskQueNotFull.wait_for(lock,
+        std::chrono::seconds(1),[&](){
         return taskQue.size() < taskMaxThreshHold;
-    });
+    })) {
+        //添加任务失败
+        std::cerr<<"Adding task fails"<<std::endl;
+        return;
+    }
     //添加任务
     taskQue.emplace(sp);
     taskSize++;
