@@ -67,11 +67,27 @@ private:
     PoolMode poolMode;//线程池模式
 };
 
-
+//任意类型
 class Any {
 public:
+    Any() = default;
+    ~Any() = default;
+    Any(const Any&) = delete;
+    Any& operator=(const Any&) = delete;
+    Any (Any&&) = default;
+    Any& operator=(Any&&) = default;
     template<class T>
     Any(T data) : base_(new Derive<T>(data)){}
+
+    //提取data数据
+    template<class T>
+    T cast_() {
+        Derive<T>*  pd = dynamic_cast<Derive<T>*>(base_.get());
+        if (pd == nullptr) {
+            throw "type is not match";
+        }
+        return pd->data_;
+    }
 private:
     class Base {
     public:
@@ -82,12 +98,43 @@ private:
     class Derive : public Base {
     public:
         Derive(T data): data_(data){}
-    private:
+
         T data_;
     };
 
 private:
     std::unique_ptr<Base> base_;
+};
+
+
+class Semaphore {
+public:
+    Semaphore(int limit = 0) : resLimit_(limit){
+
+    }
+    ~Semaphore() = default;
+
+
+    void wait() {
+        std::unique_lock<std::mutex> lock(mtx_);
+        cond_.wait(lock,[this](){
+            return resLimit_ > 0;
+        });
+        resLimit_--;
+    }
+
+    void post() {
+        std::unique_lock<std::mutex> lock(mtx_);
+        resLimit_++;
+        cond_.notify_all();
+    }
+
+
+private:
+    int resLimit_;
+    std::mutex mtx_;
+    std::condition_variable cond_;
+
 };
 
 
