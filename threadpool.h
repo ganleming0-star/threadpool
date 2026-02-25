@@ -68,5 +68,33 @@ private:
 };
 
 
+class Any {
+public:
+    template<class T>
+    Any(T data) : base_(new Derive<T>(data)){}
+private:
+    class Base {
+    public:
+        virtual ~Base() = default;
+    };
+
+    template<class T>
+    class Derive : public Base {
+    public:
+        Derive(T data): data_(data){}
+    private:
+        T data_;
+    };
+
+private:
+    std::unique_ptr<Base> base_;
+};
+
+
+
+
+
+
+
 
 #endif //THREADPOOL_H
