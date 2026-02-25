@@ -4,6 +4,7 @@
 
 #include "threadpool.h"
 
+
 #define TASK_MAX_THRESH_HOLD 1024
 
 ThreadPool::ThreadPool():initThreadSize(4),taskMaxThreshHold(TASK_MAX_THRESH_HOLD),taskSize(0),poolMode(PoolMode::Mode_FIXED) {
@@ -48,7 +49,7 @@ void ThreadPool::threadFunc() {
 
         //执行任务
         if ( task) {
-            task->run();
+            task->exe();
         }
 
     }
@@ -65,7 +66,7 @@ void ThreadPool::setTaskMaxThreshHold(int max) {
 
 
 
-void ThreadPool::submitTask(std::shared_ptr<Task> sp) {
+Result ThreadPool::submitTask(std::shared_ptr<Task> sp) {
     //获取互斥锁
     std::unique_lock<std::mutex> lock(taskQueMtx);
     //等待任务队列非满
@@ -75,13 +76,14 @@ void ThreadPool::submitTask(std::shared_ptr<Task> sp) {
     })) {
         //添加任务失败
         std::cerr<<"Adding task fails"<<std::endl;
-        return;
+        return Result(sp,false);
     }
     //添加任务
     taskQue.emplace(sp);
     taskSize++;
     //唤醒
     taskQueNotEmpty.notify_all();
+    return Result(sp);
 }
 
 
@@ -99,3 +101,34 @@ void Thread::start() {
     std::thread t(func);
     t.detach();//线程分离(t出作用域后会删除)
 }
+
+
+Result::Result(std::shared_ptr<Task> task, bool isValid):task_(task),isValid_(isValid) {
+    task->setResult(this);
+}
+
+Any Result::get() {
+    if (!isValid_) {
+        return "";
+    }
+    sem_.wait();//任务执行完才会继续。否则阻塞用户线程
+    return std::move(any_);
+}
+
+void Result::setVal(Any any) {
+    this->any_ = std::move(any);
+    sem_.post();
+}
+
+
+void Task::exe() {
+    result_->setVal(run());
+}
+
+void Task::setResult(Result *res) {
+    result_ = res;
+}
+
+Task::Task() : result_(nullptr) {
+}
+
