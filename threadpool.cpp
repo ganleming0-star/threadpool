@@ -17,18 +17,16 @@ ThreadPool::~ThreadPool() {
 void ThreadPool::start(int initThreadSize) {
     isPoolRunning = true;
     this->initThreadSize = initThreadSize;
-    curThreadSize = initThreadSize;
     for (int i = 0; i < initThreadSize; i++) {
         auto ptr = std::make_unique<Thread>(std::bind(&ThreadPool::threadFunc,this,std::placeholders::_1));
         auto id = ptr->getId();
         threads.emplace(id,std::move(ptr));
+        curThreadSize++;
     }
 
-    for (int i = 0; i < initThreadSize; i++) {
-        threads[i]->start();
+    for (auto& t : threads) {
+        t.second->start();
         idleThreadSize++;
-        curThreadSize++;
-
     }
 
 }
@@ -42,7 +40,8 @@ void ThreadPool::threadFunc(int threadId) {
             std::unique_lock<std::mutex> lock(taskQueMtx);
 
             if (poolMode == PoolMode::Mode_CACHED) {
-                if (std::cv_status::timeout == taskQueNotEmpty.wait_for(lock,std::chrono::seconds(1))) {
+                if (taskQue.empty() &&
+                    std::cv_status::timeout == taskQueNotEmpty.wait_for(lock,std::chrono::seconds(1))) {
                     auto now = std::chrono::high_resolution_clock::now();
                     auto dur = std::chrono::duration_cast<std::chrono::seconds>(now-last);
                     if (dur.count() > 60&& curThreadSize > initThreadSize) {
@@ -57,6 +56,10 @@ void ThreadPool::threadFunc(int threadId) {
             }else {
                 //等待notEmpty条件
                 taskQueNotEmpty.wait(lock,[&]()->bool{ return taskSize > 0;});
+            }
+
+            if (taskQue.empty()) {
+                continue;
             }
 
             idleThreadSize--;
@@ -131,6 +134,7 @@ Result ThreadPool::submitTask(std::shared_ptr<Task> sp) {
         auto ptr = std::make_unique<Thread>(std::bind(&ThreadPool::threadFunc,this,std::placeholders::_1));
         auto id = ptr->getId();
         threads.emplace(id,std::move(ptr));
+        std::cout<<"add"<<std::endl;
         //启动
         threads[id]->start();
         curThreadSize++;
