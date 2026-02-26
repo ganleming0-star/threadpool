@@ -1,6 +1,7 @@
 
 #ifndef THREADPOOL_H
 #define THREADPOOL_H
+#include <unordered_map>
 #include <vector>
 #include <queue>
 #include <memory>
@@ -10,6 +11,7 @@
 #include <functional>
 #include <thread>
 #include <iostream>
+#include <map>
 
 class Task;
 //任意类型
@@ -121,13 +123,17 @@ enum class PoolMode {
 class Thread {
 public:
     //线程函数类型
-    using ThreadFunc = std::function<void()>;
+    using ThreadFunc = std::function<void(int)>;
     Thread(ThreadFunc new_func);
     ~Thread();
     //启动线程
     void start();
+    //获取线程ID
+    int getId() const;
 private:
     ThreadFunc func;
+    static  int generateId;
+    int threadId;
 };
 //线程池类型
 class ThreadPool {
@@ -142,14 +148,21 @@ public:
     void setMode(PoolMode mode);
     //设置任务队列上线
     void setTaskMaxThreshHold(int  max);
+    void setThreadSizeThreshHold(int max);
     //提交任务
     Result submitTask(std::shared_ptr<Task> sp);
 private:
-    void threadFunc();
+    void threadFunc(int threadId);
+    bool checkRunningState()const;
 
 private:
-    std::vector<std::unique_ptr<Thread>> threads;//线程列表
+    //std::vector<std::unique_ptr<Thread>> threads;//线程列表
+    std::unordered_map<int,std::unique_ptr<Thread>> threads;
     int initThreadSize;//初始线程数
+    std::atomic_int curThreadSize;//记录当前线程池里面的线程数
+    std::atomic_int idleThreadSize;//线程池中空闲线程数量
+    int threadSizeThreshHold;//线程数量上限
+
     std::queue<std::shared_ptr<Task>> taskQue;//任务队列
     std::atomic_int taskSize;//任务数量
     int taskMaxThreshHold; //任务数量上线
@@ -158,6 +171,8 @@ private:
     std::condition_variable taskQueNotFull;//任务队列非满条件变量
     std::condition_variable taskQueNotEmpty;//任务队列非空条件变量
     PoolMode poolMode;//线程池模式
+    std::atomic_bool isPoolRunning;//线程池运行状态
+
 };
 
 
