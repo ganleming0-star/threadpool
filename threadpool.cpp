@@ -94,6 +94,7 @@ void ThreadPool::setMode(PoolMode mode) {
     }
     poolMode = mode;
 }
+//设置任务队列最大限制
 
 void ThreadPool::setTaskMaxThreshHold(int max) {
     if (checkRunningState()) {
