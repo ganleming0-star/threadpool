@@ -42,12 +42,18 @@ void ThreadPool::start(int initThreadSize) {
 
 void ThreadPool::threadFunc(int threadId) {
     auto last = std::chrono::high_resolution_clock::now();
-    while (isPoolRunning) {
+    while (1) {
         std::shared_ptr<Task> task;
         {
             //获取锁
             std::unique_lock<std::mutex> lock(taskQueMtx);
-            while (isPoolRunning&&taskQue.size()== 0) {
+            while (taskQue.size()== 0) {
+                if (!isPoolRunning) {
+                    threads.erase(threadId);
+                    exitCond.notify_all();
+                    std::cout<<"end"<<std::endl;
+                    return;
+                }
                 if (poolMode == PoolMode::Mode_CACHED) {
                     if (taskQue.empty() &&
                         std::cv_status::timeout == taskQueNotEmpty.wait_for(lock,std::chrono::seconds(1))) {
@@ -75,9 +81,7 @@ void ThreadPool::threadFunc(int threadId) {
                 // }
             }
 
-            if (!isPoolRunning) {
-                break;
-            }
+
 
 
             if (taskQue.empty()) {
@@ -105,9 +109,7 @@ void ThreadPool::threadFunc(int threadId) {
         last = std::chrono::high_resolution_clock::now();
 
     }
-    threads.erase(threadId);
-    exitCond.notify_all();
-    std::cout<<"end"<<std::endl;
+
 
 }
 

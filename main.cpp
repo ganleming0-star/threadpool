@@ -12,7 +12,8 @@ public:
         for (int i = begin; i <= end; i++) {
             sum+= i;
         }
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(std::chrono::seconds(0));
+        std::cout<<"1"<<std::endl;
         return sum;
     }
 
