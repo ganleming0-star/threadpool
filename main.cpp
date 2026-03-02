@@ -21,20 +21,23 @@ private:
     int end;
 };
 int main() {
-    ThreadPool pool;
-    pool.setMode(PoolMode::Mode_CACHED);
-    pool.start(4);
+    {
+        ThreadPool pool;
+        pool.setMode(PoolMode::Mode_CACHED);
+        pool.start(4);
 
 
-    Result res1 = pool.submitTask(std::make_shared<TestTask>(1,10000));
-    Result res2 =pool.submitTask(std::make_shared<TestTask>(10001,20000));
-    Result res3 =pool.submitTask(std::make_shared<TestTask>(20001,30000));
+        Result res1 = pool.submitTask(std::make_shared<TestTask>(1,10000));
+        Result res2 =pool.submitTask(std::make_shared<TestTask>(10001,20000));
+        Result res3 =pool.submitTask(std::make_shared<TestTask>(20001,30000));
 
 
 
-    long long sum = res1.get().cast_<long long>() + res2.get().cast_<long long>() + res3.get().cast_<long long>();
+        long long sum = res1.get().cast_<long long>() + res2.get().cast_<long long>() + res3.get().cast_<long long>();
 
-    std::cout<<sum<<std::endl;
+        std::cout<<sum<<std::endl;
+    }
+
 
 
 

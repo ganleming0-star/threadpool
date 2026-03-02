@@ -13,10 +13,11 @@ poolMode(PoolMode::Mode_FIXED),isPoolRunning(false),idleThreadSize(0),threadSize
 
 ThreadPool::~ThreadPool() {
     isPoolRunning = false;
-    taskQueNotEmpty.notify_all();
+
 
     //等待线程池所有线程返回
     std::unique_lock<std::mutex> lock(taskQueMtx);
+    taskQueNotEmpty.notify_all();
     exitCond.wait(lock,[&]()->bool {
         return threads.size() == 0;
     });
@@ -46,7 +47,7 @@ void ThreadPool::threadFunc(int threadId) {
         {
             //获取锁
             std::unique_lock<std::mutex> lock(taskQueMtx);
-            while (taskQue.size()== 0) {
+            while (isPoolRunning&&taskQue.size()== 0) {
                 if (poolMode == PoolMode::Mode_CACHED) {
                     if (taskQue.empty() &&
                         std::cv_status::timeout == taskQueNotEmpty.wait_for(lock,std::chrono::seconds(1))) {
@@ -65,22 +66,24 @@ void ThreadPool::threadFunc(int threadId) {
                     //等待notEmpty条件
                     taskQueNotEmpty.wait(lock);
                 }
-                if (!isPoolRunning) {
-                    threads.erase(threadId);
+                // if (!isPoolRunning) {
+                //     threads.erase(threadId);
+                //
+                //     std::cout<<"end"<<std::endl;
+                //     exitCond.notify_all();
+                //     return;
+                // }
+            }
 
-                    std::cout<<"end"<<std::endl;
-                    exitCond.notify_all();
-                    return;
-                }
+            if (!isPoolRunning) {
+                break;
             }
 
 
             if (taskQue.empty()) {
                 continue;
             }
-
             idleThreadSize--;
-
 
             //取任务
             task = taskQue.front();
@@ -99,7 +102,7 @@ void ThreadPool::threadFunc(int threadId) {
             task->exe();
         }
         idleThreadSize++;
-        auto end = std::chrono::high_resolution_clock::now();
+        last = std::chrono::high_resolution_clock::now();
 
     }
     threads.erase(threadId);
