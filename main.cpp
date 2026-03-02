@@ -12,7 +12,7 @@ public:
         for (int i = begin; i <= end; i++) {
             sum+= i;
         }
-        std::this_thread::sleep_for(std::chrono::seconds(3));
+        std::this_thread::sleep_for(std::chrono::seconds(1));
         return sum;
     }
 
@@ -29,12 +29,6 @@ int main() {
     Result res1 = pool.submitTask(std::make_shared<TestTask>(1,10000));
     Result res2 =pool.submitTask(std::make_shared<TestTask>(10001,20000));
     Result res3 =pool.submitTask(std::make_shared<TestTask>(20001,30000));
-    pool.submitTask(std::make_shared<TestTask>(20001,30000));
-    pool.submitTask(std::make_shared<TestTask>(20001,30000));
-    pool.submitTask(std::make_shared<TestTask>(20001,30000));
-    pool.submitTask(std::make_shared<TestTask>(20001,30000));
-    pool.submitTask(std::make_shared<TestTask>(20001,30000));
-    pool.submitTask(std::make_shared<TestTask>(20001,30000));
 
 
 

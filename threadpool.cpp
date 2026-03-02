@@ -12,6 +12,14 @@ poolMode(PoolMode::Mode_FIXED),isPoolRunning(false),idleThreadSize(0),threadSize
 }
 
 ThreadPool::~ThreadPool() {
+    isPoolRunning = false;
+    taskQueNotEmpty.notify_all();
+
+    //等待线程池所有线程返回
+    std::unique_lock<std::mutex> lock(taskQueMtx);
+    exitCond.wait(lock,[&]()->bool {
+        return threads.size() == 0;
+    });
 }
 
 void ThreadPool::start(int initThreadSize) {
@@ -33,30 +41,39 @@ void ThreadPool::start(int initThreadSize) {
 
 void ThreadPool::threadFunc(int threadId) {
     auto last = std::chrono::high_resolution_clock::now();
-    while (1) {
+    while (isPoolRunning) {
         std::shared_ptr<Task> task;
         {
             //获取锁
             std::unique_lock<std::mutex> lock(taskQueMtx);
-
-            if (poolMode == PoolMode::Mode_CACHED) {
-                if (taskQue.empty() &&
-                    std::cv_status::timeout == taskQueNotEmpty.wait_for(lock,std::chrono::seconds(1))) {
-                    auto now = std::chrono::high_resolution_clock::now();
-                    auto dur = std::chrono::duration_cast<std::chrono::seconds>(now-last);
-                    if (dur.count() > 60&& curThreadSize > initThreadSize) {
-                        //回收线程
-                        threads.erase(threadId);
-                        curThreadSize--;
-                        idleThreadSize--;
-                        std::cout<<"end"<<std::endl;
-                        return;
-                    }
+            while (taskQue.size()== 0) {
+                if (poolMode == PoolMode::Mode_CACHED) {
+                    if (taskQue.empty() &&
+                        std::cv_status::timeout == taskQueNotEmpty.wait_for(lock,std::chrono::seconds(1))) {
+                        auto now = std::chrono::high_resolution_clock::now();
+                        auto dur = std::chrono::duration_cast<std::chrono::seconds>(now-last);
+                        if (dur.count() > 60&& curThreadSize > initThreadSize) {
+                            //回收线程
+                            threads.erase(threadId);
+                            curThreadSize--;
+                            idleThreadSize--;
+                            std::cout<<"end"<<std::endl;
+                            return;
+                        }
+                        }
+                }else {
+                    //等待notEmpty条件
+                    taskQueNotEmpty.wait(lock);
                 }
-            }else {
-                //等待notEmpty条件
-                taskQueNotEmpty.wait(lock,[&]()->bool{ return taskSize > 0;});
+                if (!isPoolRunning) {
+                    threads.erase(threadId);
+
+                    std::cout<<"end"<<std::endl;
+                    exitCond.notify_all();
+                    return;
+                }
             }
+
 
             if (taskQue.empty()) {
                 continue;
@@ -85,6 +102,9 @@ void ThreadPool::threadFunc(int threadId) {
         auto end = std::chrono::high_resolution_clock::now();
 
     }
+    threads.erase(threadId);
+    exitCond.notify_all();
+    std::cout<<"end"<<std::endl;
 
 }
 
@@ -150,7 +170,16 @@ bool ThreadPool::checkRunningState() const {
 }
 
 
-//////////////////////
+/**
+ * @brief A static member variable used to generate unique identifiers for each thread.
+ *
+ * This integer is incremented each time a new Thread object is created, ensuring
+ * that each thread has a unique ID. The initial value is set to 0, and it increases
+ * by 1 for every new thread instance.
+ *
+ * @note This variable is intended for internal use within the Thread class and should
+ * not be modified or accessed directly from outside the class.
+ */
 int Thread::generateId = 0;
 
 Thread::Thread(ThreadFunc new_func):func(std::move(new_func)),threadId(generateId++) {
